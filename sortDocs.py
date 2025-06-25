@@ -5,6 +5,7 @@ from PyPDF2 import PdfReader
 
 """Checks if a txt file is being run, if not creates one with default dictionary info"""
 Debug = False
+min_keyword_threshold = 4
 
 def subject_keywords_txt(txtfile):
     if not txtfile.exists():
@@ -67,7 +68,11 @@ def get_subject_results(scores, filename=None):
     best_subject = max(scores, key=scores.get)  # Returns the subject(key) with the highest value
     best_value = scores[best_subject]  # Returns the value of the best_subject Key
     best_matches = []  # empty list for the best subjects
-
+    if best_value < min_keyword_threshold:
+        print(f"---------------- {filename} ----------------")
+        print(f"Insufficient Keyword Matches.(Fewer than {min_keyword_threshold}  Cannot Be Classified.)")
+        print("--------------------------------------------------------\n")
+        return "Unclassified"
 
     for score_key, score_value in scores.items():  # loops through scores dictionary making a list of keys and values
         if score_value == best_value:  # If a score value is equal to the max score,
@@ -158,7 +163,7 @@ def determine_subject_pdf(file_path):
     return best_subject, name
 
 
-def auto_sort(input_folder, output_folder):
+def auto_sort(input_folder, output_folder,doc_type = None):
     log = {}
     total_files = 0
     for file in input_folder.iterdir():  #loop through each content in the folder (itedir from pathlib)
@@ -171,20 +176,22 @@ def auto_sort(input_folder, output_folder):
         if subject is None:
             subject = "Unclassified"
 
-        if subject:
-            subject_folder = output_folder / subject  # assigns value of subject folder to folder directory with /(whatever subject) added on. example "C:/Users/lowry/Desktop/Sorted Documents/Budget"
 
-            subject_folder.mkdir(exist_ok=True)
+        folder_path = output_folder / subject  # assigns value of subject folder to folder directory with /(whatever subject) added on. example "C:/Users/lowry/Desktop/Sorted Documents/Budget"
 
-            destination = subject_folder / file.name  #.name is built in to path gives file name with no folder path as a string
+        if doc_type:
+            folder_path = folder_path / doc_type  # assigns value of subject folder to folder directory with /(whatever subject) added on. example "C:/Users/lowry/Desktop/Sorted Documents/Budget"
 
-            shutil.copy(file, destination)
+        folder_path.mkdir(parents = True, exist_ok=True) #if any folders in path don't exist, make them all.
 
-            if subject not in log:
-                log[subject] = []  #make a list to store file names inside dictionary
-            log[subject].append(file.name)
 
-            total_files += 1
+        shutil.copy(file,folder_path / file.name)
+
+        if subject not in log:
+             log[subject] = []  #make a list to store file names inside dictionary
+        log[subject].append(file.name)
+
+        total_files += 1
 
     print(f"Total Files Sorted: {total_files}")
     print("Subjects Detected:")
@@ -200,48 +207,90 @@ def auto_sort(input_folder, output_folder):
 def main():
     while True:
         print("\nMenu")
-        print("1. Classify Word Documents")
+        print("1. Classify Word Document")
         print("2. Classify PDF")
-        print("3. Auto Sort")
-        print("4. Import Subject Dictionary")
-        print("5. Toggle Debug Mode ")
+        print("3. Auto Sort (Subject)")
+        print("4. Auto Sort (Subject + Type)")
+        print("5. System Settings ")
         print("6. Exit")
+
+        print("\nEnter back at any point if wrong selection is chosen.")
         input_choice = input("Enter your choice: ")
         if input_choice not in {"1", "2", "3", "4", "5","6"}:
             print("Invalid choice. Please try again.")
             continue
         if input_choice == "1":
-            path_str = input("Enter the path of your document: ").strip(
-                '"')  # asking user for path, and negates parenthesis
+            path_str = input("Enter the path of your document: ").strip( '"')  # asking user for path, and negates parenthesis
+            if path_str.strip().lower() == "back": continue
             file_path = Path(path_str)  # turning the string into a path object
             determine_subject_docx(file_path)
         if input_choice == "2":
             pdf_path_str = input("Enter the path of your PDF: ").strip('"')
+            if pdf_path_str.strip().lower() == "back": continue
             file_path = Path(pdf_path_str)
             determine_subject_pdf(file_path)
         if input_choice == "3":
             input_path_str = input("Enter the folder path of your documents: ").strip('"')
+            if input_path_str.strip().lower() == "back": continue
             output_path_str = input("Enter the destination folder: ").strip('"')
+            if output_path_str.strip().lower() == "back": continue
             input_folder = Path(input_path_str)
             output_folder = Path(output_path_str)
             auto_sort(input_folder, output_folder)
 
         if input_choice == "4":
-            path_str_txt = input("Enter the path of your txt file: ").strip('"')
-            keyword_file_user = Path(path_str_txt)
-            global subject_keywords  #replace global subject_keywords dict with this one
-            subject_keywords_txt(keyword_file_user)
-            subject_keywords = subject_keywords_dict(keyword_file_user)
-            print("New subject keywords loaded:", subject_keywords)
+            print("\nNote:\n  The document type you enter will be used exactly as-is to create a folder.")
+            print(
+                "To sort into an existing folder (like 'RFP' or 'SOW'), you must type the folder name exactly, including: ")
+            print("- Correct capitalization (e.g., 'RFP' ≠ 'rfp')")
+            print("- No extra spaces")
+            print("- No added letters (e.g., 'RFPs' will create a new folder separate from 'RFP')")
+            print("\n Even small changes will create a new folder.")
+
+            input_type = input("\nEnter the type of Documents: ")
+            if input_type.strip().lower() == "back": continue
+            input_path_str = input("Enter the folder path of your documents: ").strip('"')
+            if input_path_str.strip().lower() == "back": continue
+            output_path_str = input("Enter the destination folder: ").strip('"')
+            if output_path_str.strip().lower() == "back": continue
+            input_folder = Path(input_path_str)
+            output_folder = Path(output_path_str)
+            auto_sort(input_folder, output_folder, input_type)
+
 
         if input_choice == "5":
+            global min_keyword_threshold #declaring to python that im accessing global variables
+            global subject_keywords
             global Debug
-            if not Debug:
-                Debug = True
-                print("\nDebug mode ON")
-            elif Debug:
-                Debug = False
-                print("\nDebug mode OFF")
+            while True:
+                print("\nSettings Menu")
+                print(f"1. Set Minimum Keyword Threshold (current: {min_keyword_threshold}) ")
+                print("2. Import New Subject Dictionary")
+                print("3. Toggle Debug Mode")
+                print("4. Back to Main Menu")
+                settings_choice = input("Enter your choice: ")
+                if settings_choice.lower() not in {"1", "2", "3","4"}:
+                    print("Invalid choice. Please try again.")
+                    continue
+                if settings_choice == "1":
+                    min_keyword_threshold = int(input("Enter the minimum keyword threshold: "))
+                if settings_choice == "2":
+                    path_str_txt = input("Enter the path of your txt file: ").strip('"')
+                    if path_str_txt.strip().lower() == "back": continue
+                    keyword_file_user = Path(path_str_txt)
+                    subject_keywords_txt(keyword_file_user) # replace global subject_keywords dict with this one
+                    subject_keywords = subject_keywords_dict(keyword_file_user)
+                    print("New subject keywords loaded:", subject_keywords)
+
+                if settings_choice == "3":
+                    if not Debug:
+                        Debug = True
+                        print("\nDebug mode ON")
+                    elif Debug:
+                        Debug = False
+                        print("\nDebug mode OFF")
+                if settings_choice == "4":
+                    break
 
         if input_choice == "6":
             print("Goodbye!")
