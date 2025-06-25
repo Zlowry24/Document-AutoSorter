@@ -4,7 +4,7 @@ from docx import Document  #imports Document class from PyDocx package
 from PyPDF2 import PdfReader
 
 """Checks if a txt file is being run, if not creates one with default dictionary info"""
-
+Debug = False
 
 def subject_keywords_txt(txtfile):
     if not txtfile.exists():
@@ -23,7 +23,7 @@ def subject_keywords_txt(txtfile):
             file.write("Change Management: change management\n")
             file.write("Program Management Support: program management support, program management\n")
             file.write("Systems Engineering: systems engineering\n")
-            #missing assesments, event planning, exercises, mgmt approach, req dev, realty and facilities
+            #missing assessments, event planning, exercises, mgmt approach, req dev, realty and facilities
 
 
 """opens txt file, creates an empty dict, loops through each line, strips each line of spaces and newlines, ignores comments and empty lines, splits keys and values, and assigns values, splits values through commas, and makes a list of each, puts it in a tuple as the value for the corresponding subject."""
@@ -58,26 +58,29 @@ subject_keywords = subject_keywords_dict(keyword_file)
 
 
 def get_subject_results(scores, filename=None):
-    if all(value == 0 for value in scores.values()):  #checks if scores are all 0, before determining a best subject
-        print(f"No keyword matches {filename} cannot be classified.\n")
+    if all(value == 0 for value in scores.values()):  #checks if scores are all 0, before determining best subject
+        print(f"---------------- {filename} ----------------")
+        print("No Keyword Matches. Cannot Be classified")
+        print("--------------------------------------------------------\n")
         return None
 
-    best_subject = max(scores, key=scores.get)  # Returns the subject(key) with the higirhest value
+    best_subject = max(scores, key=scores.get)  # Returns the subject(key) with the highest value
     best_value = scores[best_subject]  # Returns the value of the best_subject Key
     best_matches = []  # empty list for the best subjects
+
 
     for score_key, score_value in scores.items():  # loops through scores dictionary making a list of keys and values
         if score_value == best_value:  # If a score value is equal to the max score,
             best_matches.append(score_key)  # add it to the best_matches list
-        elif score_value < best_value and score_value != 0:  # If a score value is < max but >=1,
-            print("-" * 100)
-            print(f"List of the Secondary Subjects for {filename}:  ")
-            print(f"\n{score_key}: {score_value} matches")  # print the subsequent score_key and its value
+        elif best_value > score_value >= 1:  # If a score value is < max but >=1,
+            print(f"\n---------------- {filename} ----------------")
+            print("Secondary Subjects:  ")
+            print(f"-{score_key}: ({score_value} match(es))")  # print the subsequent score_key and its value
 
     if len(best_matches) == 1:
-        print("-" * 100)
-        print(f"\nBEST Subject Match for {filename}:", best_matches[0], "With", best_value, "Matches")
-        print("\n" + "-" * 100)
+
+        print(f"\nBEST Subject Match: {best_matches[0]} With ({best_value} Matches)")
+        print("--------------------------------------------------------\n")
         return best_subject
 
     else:
@@ -90,6 +93,7 @@ def get_subject_results(scores, filename=None):
 
 def determine_subject_docx(file_path):
     name = file_path.name
+    full_text = ""
     try:
         doc = Document(
             file_path)  # doc becomes a document object from the pydocx package, holding everything inside the docx file, in the provided location
@@ -102,43 +106,30 @@ def determine_subject_docx(file_path):
               subject_keywords}  # Dict of subject scores created based off subjects, and set = 0
 
     for paragraph in doc.paragraphs:  # loops through doc variable with .paragraphs attribute, which is a list of all the paragraphs of text (just paragraphs) in the document object
-        for subject_key, keywords in subject_keywords.items():  #loops through dictionary as a list using .items
-            for keyword in keywords:  #checks (loops through) each individual keyword
-                if keyword.lower() in paragraph.text.lower():  #checks if paragraph text matches any keywords during loop
-                    count = paragraph.text.lower().count(
-                        keyword.lower())  #stores count of paragraphs text(lowercase) and within that counts keywords  (lowercase)
-                    scores[subject_key] += count  #Adds the count to the score value and sets it equal each time
-                    for _ in range(count):
-                        print(f"COUNT +1: Matched keyword '{keyword}' in: {paragraph.text}")
+        full_text += paragraph.text + " "
 
     for table in doc.tables:  #the same as above but loops through each table, and its rows and cells.
         for row in table.rows:
             for cell in row.cells:
-                for subject_key, keywords in subject_keywords.items():
-                    for keyword in keywords:
-                        if keyword.lower() in cell.text.lower():
-                            count = cell.text.lower().count(keyword.lower())
-                            scores[subject_key] += count
-                            for _ in range(count):
-                                print(f"COUNT +1: Matched keyword '{keyword}' in table cell: {cell.text}")
+                full_text += cell.text + " "
 
     for section in doc.sections:  #same thing as above but it loops through each "section" which include headers and footers.
         for paragraph in section.header.paragraphs:
-            for subject_key, keywords in subject_keywords.items():
-                for keyword in keywords:
-                    if keyword.lower() in paragraph.text.lower():
-                        count = paragraph.text.lower().count(keyword.lower())
-                        scores[subject_key] += count
+            full_text += paragraph.text + " "
 
     for paragraph in section.footer.paragraphs:
         for subject_key, keywords in subject_keywords.items():
-            for keyword in keywords:
-                if keyword.lower() in paragraph.text.lower():
-                    count = paragraph.text.lower().count(keyword.lower())
-                    scores[subject_key] += count
+            full_text += paragraph.text + " "
 
-    best_subject = get_subject_results(scores,
-                                       file_path.name)  #keeps best_subject alive (it only exists in the get subject_results function)
+    for subject_key, keywords in subject_keywords.items():  # loops through dictionary as a list using .items
+        for keyword in keywords:  # checks (loops through) each individual keyword
+            if keyword.lower() in full_text.lower():  # checks if text matches any keywords during loop
+                count = full_text.lower().count(keyword.lower())  # stores count of paragraphs text(lowercase) and within that counts keywords  (lowercase)
+                scores[subject_key] += count  # Adds the count to the score value and sets it equal each time
+                if Debug:
+                    for _ in range(count):
+                        print(f"COUNT +1: Matched keyword '{keyword}' in Document")
+    best_subject = get_subject_results(scores, file_path.name)  #keeps best_subject alive (it only exists in the get subject_results function)
     return best_subject, name
 
 
@@ -160,8 +151,9 @@ def determine_subject_pdf(file_path):
                     if keyword.lower() in full_text.lower():
                         count = full_text.lower().count(keyword.lower())
                         scores[subject_key] += count
-                        for _ in range(count):
-                            print(f"COUNT +1: Matched keyword '{keyword}' in PDF page.")
+                        if Debug:
+                            for _ in range(count):
+                                print(f"COUNT +1: Matched keyword '{keyword}' in PDF page.")
     best_subject = get_subject_results(scores, file_path.name)
     return best_subject, name
 
@@ -198,7 +190,7 @@ def auto_sort(input_folder, output_folder):
     print("Subjects Detected:")
     for subject, files in log.items(): #log dict has a list inside of it of file names correlating to subject
         print(f"\n{subject}: {len(files)} file(s)")
-        for filename in files: #loops through eahc file name printing each one
+        for filename in files: #loops through each file name printing each one
             print(f"  - {filename}")
 
 
@@ -212,9 +204,10 @@ def main():
         print("2. Classify PDF")
         print("3. Auto Sort")
         print("4. Import Subject Dictionary")
-        print("5. Exit")
+        print("5. Toggle Debug Mode ")
+        print("6. Exit")
         input_choice = input("Enter your choice: ")
-        if input_choice not in {"1", "2", "3", "4", "5"}:
+        if input_choice not in {"1", "2", "3", "4", "5","6"}:
             print("Invalid choice. Please try again.")
             continue
         if input_choice == "1":
@@ -242,6 +235,15 @@ def main():
             print("New subject keywords loaded:", subject_keywords)
 
         if input_choice == "5":
+            global Debug
+            if not Debug:
+                Debug = True
+                print("\nDebug mode ON")
+            elif Debug:
+                Debug = False
+                print("\nDebug mode OFF")
+
+        if input_choice == "6":
             print("Goodbye!")
             break
 
