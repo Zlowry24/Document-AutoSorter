@@ -5,9 +5,10 @@ from docx import Document  #imports Document class from PyDocx package
 from PyPDF2 import PdfReader
 
 
-Debug = True #sets Debug mode to false
+Debug = False #sets Debug mode to false
 min_keyword_threshold = 4
 overwrite_value = False
+current_keyword_file = None
 
 
 """Checks if a txt file is being run, if not creates one with default dictionary info"""
@@ -154,7 +155,7 @@ def determine_subject_docx(file_path):
     for subject_key, keywords in subject_keywords.items():  # loops through dictionary as a list using .items
         length_keywords = sorted(keywords, key=lambda k:-len(k)) #sorted function sorts list from smallest to largest, this sorts keywords by assigning negative value to each letter, making the longest word the smallest by value.
         for keyword in length_keywords:  # checks (loops through) each individual keyword sorted form longest to shortest
-            pattern =r"\b" + re.escape(keyword.lower()) + r"\b" #uses re module to add a boundary after each keyword, so it only looks for (example) "EA" not ea in every word
+            pattern =r"\b" + re.escape(keyword.lower()) + r"\b" #uses re module to add a boundary after each keyword, so it only looks for (example: "EA" individually not ea in every word)
             matches = re.findall(pattern, text_to_search) #searches entire text for all non-overlapping matches of a pattern and returns a list of strings
             if matches:  # checks if text matches any keywords during loop
                 count = len(matches)  # counts matches in matches list
@@ -205,7 +206,7 @@ def auto_sort(input_folder, output_folder,doc_type = None):
     log = {}
     secondary_log = {}
     total_files = 0
-    for file in input_folder.iterdir():  #loop through each content in the folder (itedir from pathlib)
+    for file in input_folder.rglob("*"):  #loop through every folder, and its subfolders, (recursive glob) ("*" match every type of doc, as opposed to just pdf or docx)
         if file.is_dir():
             continue #skip folders so, program doesn't try to copy them
         subject = None  #prevents python crash if file is neither
@@ -281,12 +282,20 @@ def main():
     global subject_keywords
     global overwrite_value
     global Debug
+    global current_keyword_file
     keyword_file = Path("subject_keywords.txt")
+    current_keyword_file = keyword_file
+    if current_keyword_file is None:
+        current_keyword_file = keyword_file
 
 
     while True:
-        subject_keywords_txt(keyword_file, overwrite=overwrite_value)  # Ensures default exists
-        subject_keywords = subject_keywords_dict(keyword_file)
+        if current_keyword_file == keyword_file:
+            subject_keywords_txt(current_keyword_file, overwrite=overwrite_value)
+        else:
+            subject_keywords_txt(current_keyword_file, overwrite=False)
+        # Ensures default exists
+        subject_keywords = subject_keywords_dict(current_keyword_file)
         if Debug:
             print("\n[DEBUG] Loaded keywords:")
             for subject, keywords in subject_keywords.items():
@@ -364,8 +373,12 @@ def main():
                     path_str_txt = input("Enter the path of your txt file: ").strip('"')
                     if path_str_txt.strip().lower() == "back": continue
                     keyword_file_user = Path(path_str_txt)
+                    if not keyword_file_user.exists():
+                        print(f"\n[ERROR] Could not find file at: {keyword_file_user}")
+                        continue
                     subject_keywords_txt(keyword_file_user) # replace global subject_keywords dict with this one
                     subject_keywords = subject_keywords_dict(keyword_file_user)
+                    current_keyword_file = keyword_file_user
                     print("New subject keywords loaded:", subject_keywords)
 
                 if settings_choice == "3":
